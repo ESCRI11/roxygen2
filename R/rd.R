@@ -33,10 +33,10 @@ rd_roclet <- function() {
 
 #' @export
 roclet_process.roclet_rd <- function(x, blocks, env, base_path) {
-
+  
   # Convert each block into a topic, indexed by filename
   topics <- RoxyTopics$new()
-
+  
   classes <- unlist(lapply(blocks, function(x){
     filename <- basename(x$file)
     class <- stringr::str_extract(filename, ".+?(?=\\$)")
@@ -45,17 +45,26 @@ roclet_process.roclet_rd <- function(x, blocks, env, base_path) {
     }
     class
   }))
-
+  
   index_first_class_declaration <- which(!duplicated(classes))
-
+  
+  iter <- 1
   for(x in index_first_class_declaration){
     blocks[[x]]$tags <- c(blocks[[x]]$tags,
                           unlist(
-                            lapply(which(classes == classes[1])[-1], function(y){
-                              blocks[[y]]$tags
+                            lapply(which(classes == classes[x])[-1], function(y){
+                              tags <- blocks[[y]]$tags
+                              tags <- lapply(tags, function(z){
+                                if (z$tag == "name" || z$tag == "noRd"){
+                                  NULL
+                                } else {z}
+                              })
+                              tags <- tags[-which(sapply(tags, is.null))]
+                              tags
                             }), recursive = F))
+    iter <- iter + 1
   }
-
+  
   for (block in blocks) {
     rd <- block_to_rd(block, base_path, env)
     topics$add(rd, block)
@@ -65,32 +74,32 @@ roclet_process.roclet_rd <- function(x, blocks, env, base_path) {
   topics$drop_invalid()
   topics_fix_params_order(topics)
   topics_add_default_description(topics)
-
+  
   topics$topics
 }
 
 #' @export
 roclet_output.roclet_rd <- function(x, results, base_path, ..., is_first = FALSE) {
   man <- normalizePath(file.path(base_path, "man"))
-
+  
   contents <- map_chr(results, format)
   paths <- file.path(man, names(results))
-
+  
   names <- unname(map_chr(results, ~ .$get_name()[[1]]))
   if (length(names) > 0) {
     hrefs <- paste0("ide:run:pkgload::dev_help('", names, "')")
   } else {
     hrefs <- character()
   }
-
+  
   # Always check for roxygen2 header before overwriting NAMESPACE (#436),
   # even when running for the first time
   mapply(write_if_different, paths, contents, href = hrefs)
-
+  
   if (!is_first) {
     # Automatically delete any files in man directory that were generated
     # by roxygen in the past, but weren't generated in this sweep.
-
+    
     old_paths <- setdiff(dir(man, full.names = TRUE), paths)
     old_paths <- old_paths[!file.info(old_paths)$isdir]
     old_roxygen <- Filter(made_by_roxygen, old_paths)
@@ -99,7 +108,7 @@ roclet_output.roclet_rd <- function(x, results, base_path, ..., is_first = FALSE
       unlink(old_roxygen)
     }
   }
-
+  
   paths
 }
 
@@ -115,7 +124,7 @@ needs_doc <- function(block) {
   if (block_has_tags(block, "noRd")) {
     return(FALSE)
   }
-
+  
   block_has_tags(block, c(
     "description", "param", "return", "title", "example",
     "examples", "name", "rdname", "details", "inherit", "describeIn")
@@ -139,11 +148,11 @@ block_to_rd.default <- function(block, ...) {
 block_to_rd.roxy_block <- function(block, base_path, env) {
   # Must start by processing templates
   block <- process_templates(block, base_path)
-
+  
   if (!needs_doc(block)) {
     return()
   }
-
+  
   name <- block_get_tag(block, "name")$val %||% block$object$topic
   if (is.null(name)) {
     warn_roxy_block(block, c(
@@ -152,62 +161,62 @@ block_to_rd.roxy_block <- function(block, base_path, env) {
     ))
     return()
   }
-
+  
   rd <- RoxyTopic$new()
   topic_add_name_aliases(rd, block, name)
   for (tag in block$tags) {
     rd$add(roxy_tag_rd(tag, env = env, base_path = base_path))
   }
-
+  
   if (rd$has_section("description") && rd$has_section("reexport")) {
     warn_roxy_block(block, "Block must not include a description when re-exporting a function")
     return()
   }
-
+  
   describe_rdname <- topic_add_describe_in(rd, block, env)
   filename <- describe_rdname %||% block_get_tag(block, "rdname")$val %||% nice_name(name)
   rd$filename <- paste0(filename, ".Rd")
-
+  
   rd
 }
 
 #' @export
 
 block_to_rd.roxy_block_r6class <- function(block, base_path, env) {
-
+  
   r6on <- roxy_meta_get("r6", TRUE)
   if (!isTRUE(r6on)) return(NextMethod())
-
+  
   # Must start by processing templates
   block <- process_templates(block, base_path)
-
+  
   if (!needs_doc(block)) {
     return()
   }
-
+  
   name <- block_get_tag(block, "name")$val %||% block$object$topic
   if (is.null(name)) {
     warn_roxy_block(block, "must have a @name")
     return()
   }
-
+  
   rd <- RoxyTopic$new()
   topic_add_name_aliases(rd, block, name)
-
+  
   rd$add(roxy_tag_rd(block_get_tag(block, "name"), env = env, base_path = base_path))
   rd$add(roxy_tag_rd(block_get_tag(block, "title"), env = env, base_path = base_path))
-
+  
   if (rd$has_section("description") && rd$has_section("reexport")) {
     warn_roxy_block(block, "Block must not include a description when re-exporting a function")
     return()
   }
-
+  
   topic_add_r6_methods(rd, block, env)
-
+  
   describe_rdname <- topic_add_describe_in(rd, block, env)
   filename <- describe_rdname %||% block_get_tag(block, "rdname")$val %||% nice_name(name)
   rd$filename <- paste0(filename, ".Rd")
-
+  
   rd
 }
 
@@ -217,14 +226,14 @@ topics_add_default_description <- function(topics) {
   for (topic in topics$topics) {
     if (length(topic$get_section("description")) > 0)
       next
-
+    
     # rexport manually generates a own description, so don't need to
     if (!topic$has_section("reexport") &&
         !identical(topic$get_value("docType"), "package")) {
       topic$add(rd_section("description", topic$get_value("title")))
     }
   }
-
+  
   invisible()
 }
 

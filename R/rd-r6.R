@@ -18,7 +18,9 @@ topic_add_r6_methods <- function(rd, block, env) {
     del <- c(del, i)
     meth <- find_method_for_tag(methods, tag)
     if (is.na(meth)) {
-      warn_roxy_tag(tag, "Cannot find matching R6 method")
+      if(!any(tag %in% r6_tags)){
+        warn_roxy_tag(tag, "Cannot find matching R6 method")
+      }
       next
     }
     midx <- which(meth == methods$name)
