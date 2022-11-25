@@ -37,6 +37,25 @@ roclet_process.roclet_rd <- function(x, blocks, env, base_path) {
   # Convert each block into a topic, indexed by filename
   topics <- RoxyTopics$new()
 
+  classes <- unlist(lapply(blocks, function(x){
+    filename <- basename(x$file)
+    class <- stringr::str_extract(filename, ".+?(?=\\$)")
+    if(is.na(class)){
+      class <- x$object$topic
+    }
+    class
+  }))
+
+  index_first_class_declaration <- which(!duplicated(classes))
+
+  for(x in index_first_class_declaration){
+    blocks[[x]]$tags <- c(blocks[[x]]$tags,
+                          unlist(
+                            lapply(which(classes == classes[1])[-1], function(y){
+                              blocks[[y]]$tags
+                            }), recursive = F))
+  }
+
   for (block in blocks) {
     rd <- block_to_rd(block, base_path, env)
     topics$add(rd, block)

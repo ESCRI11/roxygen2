@@ -12,7 +12,7 @@ topic_add_r6_methods <- function(rd, block, env) {
   for (i in seq_along(block$tags)) {
     tag <- block$tags[[i]]
     # Not inline?
-    if (is.na(tag$line) || tag$line < block$line) next
+    if (is.na(tag$line) || !grepl("\\$", basename(tag$file))) next
     # Not a method tag?
     if (! tag$tag %in% r6_tags) next
     del <- c(del, i)
