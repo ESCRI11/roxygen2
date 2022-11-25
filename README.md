@@ -21,4 +21,4 @@ In short:
 + Declare the `R6` class `MyClass` in a file named `MyClass.R`
 + Declare the new methods for the class `MyClass` in individual (you can have multiple `$set` on the same file, it will still work) files named `MyClass$my-method.R`
 
-Use at your own risk
+> :warning: Use at your own risk
